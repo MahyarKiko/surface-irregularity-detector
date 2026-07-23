@@ -1,0 +1,422 @@
+/* 
+   Reset
+*/
+
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+}
+
+body{
+    font-family:Segoe UI,Tahoma,Geneva,Verdana,sans-serif;
+    background:#f4f6f9;
+    color:#222;
+}
+
+
+/* 
+   Layout
+ */
+
+.app-container{
+    width:95%;
+    max-width:1200px;
+    margin:40px auto;
+}
+
+
+/* 
+   Header
+ */
+
+.app-header{
+
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+
+    margin-bottom:35px;
+}
+
+.eyebrow{
+
+    color:#5c6b7a;
+    font-size:14px;
+    letter-spacing:1px;
+    text-transform:uppercase;
+}
+
+.subtitle{
+
+    color:#666;
+    margin-top:8px;
+}
+
+.connection-status{
+
+    display:flex;
+    align-items:center;
+    gap:10px;
+
+    background:white;
+
+    padding:14px 20px;
+
+    border-radius:15px;
+
+    box-shadow:0 8px 20px rgba(0,0,0,.08);
+}
+
+.status-indicator{
+
+    width:14px;
+    height:14px;
+    border-radius:50%;
+}
+
+.status-connected{
+
+    background:#2ecc71;
+}
+
+.status-disconnected{
+
+    background:#e74c3c;
+}
+
+
+/* 
+   Servo Cards
+ */
+
+.control-grid{
+
+    display:grid;
+
+    grid-template-columns:repeat(auto-fit,minmax(350px,1fr));
+
+    gap:25px;
+
+    margin-bottom:35px;
+}
+
+.control-card{
+
+    background:white;
+
+    border-radius:18px;
+
+    padding:25px;
+
+    box-shadow:0 12px 30px rgba(0,0,0,.08);
+}
+
+.card-header{
+
+    display:flex;
+
+    justify-content:space-between;
+
+    align-items:center;
+
+    margin-bottom:25px;
+}
+
+.card-label{
+
+    color:#7a7a7a;
+
+    font-size:13px;
+
+    text-transform:uppercase;
+
+    margin-bottom:4px;
+}
+
+.value-badge{
+
+    background:#1d4ed8;
+
+    color:white;
+
+    padding:10px 18px;
+
+    border-radius:10px;
+
+    font-weight:600;
+}
+
+.slider-label{
+
+    display:block;
+
+    margin-bottom:15px;
+
+    font-weight:600;
+}
+
+.intensity-slider{
+
+    width:100%;
+
+    cursor:pointer;
+}
+
+.slider-scale{
+
+    display:flex;
+
+    justify-content:space-between;
+
+    margin-top:10px;
+
+    color:#888;
+
+    font-size:13px;
+}
+
+
+/* 
+   Patterns
+ */
+
+.patterns-section{
+
+    background:white;
+
+    padding:30px;
+
+    border-radius:18px;
+
+    box-shadow:0 12px 30px rgba(0,0,0,.08);
+
+    margin-bottom:35px;
+}
+
+.section-heading{
+
+    display:flex;
+
+    justify-content:space-between;
+
+    align-items:center;
+
+    margin-bottom:25px;
+}
+
+.system-state{
+
+    padding:10px 18px;
+
+    border-radius:10px;
+
+    background:#dbeafe;
+
+    color:#1d4ed8;
+
+    font-weight:600;
+}
+
+.pattern-grid{
+
+    display:grid;
+
+    grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+
+    gap:20px;
+}
+
+.pattern-button{
+
+    background:white;
+
+    border:2px solid #d7d7d7;
+
+    border-radius:16px;
+
+    padding:28px;
+
+    cursor:pointer;
+
+    transition:.25s;
+
+    display:flex;
+
+    flex-direction:column;
+
+    align-items:center;
+
+    gap:12px;
+}
+
+.pattern-button:hover{
+
+    border-color:#2563eb;
+
+    transform:translateY(-4px);
+}
+
+.pattern-button.active{
+
+    background:#2563eb;
+
+    color:white;
+
+    border-color:#2563eb;
+}
+
+.pattern-number{
+
+    font-size:14px;
+
+    color:#888;
+}
+
+.pattern-button.active .pattern-number{
+
+    color:white;
+}
+
+.pattern-name{
+
+    font-size:20px;
+
+    font-weight:bold;
+}
+
+
+/*
+   Bottom Buttons
+ */
+
+.system-controls{
+
+    display:flex;
+
+    justify-content:center;
+
+    gap:25px;
+
+    margin-bottom:35px;
+}
+
+.secondary-button{
+
+    border:none;
+
+    padding:18px 40px;
+
+    background:#2563eb;
+
+    color:white;
+
+    border-radius:14px;
+
+    cursor:pointer;
+
+    font-size:16px;
+
+    transition:.25s;
+}
+
+.secondary-button:hover{
+
+    background:#1d4ed8;
+}
+
+.danger-button{
+
+    border:none;
+
+    padding:18px 40px;
+
+    background:#dc2626;
+
+    color:white;
+
+    border-radius:14px;
+
+    cursor:pointer;
+
+    font-size:16px;
+
+    transition:.25s;
+}
+
+.danger-button:hover{
+
+    background:#b91c1c;
+}
+
+
+/* 
+   Status Panel
+ */
+
+.status-panel{
+
+    background:white;
+
+    border-radius:18px;
+
+    padding:25px;
+
+    box-shadow:0 12px 30px rgba(0,0,0,.08);
+}
+
+.status-row{
+
+    display:flex;
+
+    justify-content:space-between;
+
+    padding:15px 0;
+
+    border-bottom:1px solid #eee;
+}
+
+.status-row:last-child{
+
+    border:none;
+}
+
+.status-label{
+
+    color:#666;
+}
+
+
+/* 
+   Disabled
+ */
+
+button:disabled{
+
+    opacity:.5;
+
+    cursor:not-allowed;
+}
+
+
+/* 
+   Responsive
+*/
+
+@media(max-width:768px){
+
+    .app-header{
+
+        flex-direction:column;
+
+        align-items:flex-start;
+
+        gap:20px;
+    }
+
+    .system-controls{
+
+        flex-direction:column;
+    }
+
+}

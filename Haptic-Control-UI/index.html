@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  />
+
+  <title>Haptic Control Hub</title>
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+  <main class="app-container">
+
+    <header class="app-header">
+      <div>
+        <p class="eyebrow">Haptic Wearable System</p>
+        <h1>Haptic Control Hub</h1>
+        <p class="subtitle">
+          Control both servos and execute haptic patterns.
+        </p>
+      </div>
+
+      <div class="connection-status">
+        <span
+          id="connectionIndicator"
+          class="status-indicator status-disconnected"
+        ></span>
+
+        <span id="connectionText">
+          Disconnected
+        </span>
+      </div>
+    </header>
+
+
+    <section class="control-grid">
+
+      <!-- Servo 1 -->
+      <article class="control-card">
+        <div class="card-header">
+          <div>
+            <p class="card-label">Actuator control</p>
+            <h2>Servo 1</h2>
+          </div>
+
+          <output
+            id="servo1Value"
+            class="value-badge"
+            for="servo1Slider"
+          >
+            50%
+          </output>
+        </div>
+
+        <label for="servo1Slider" class="slider-label">
+          Intensity
+        </label>
+
+        <input
+          id="servo1Slider"
+          class="intensity-slider"
+          type="range"
+          min="0"
+          max="100"
+          step="1"
+          value="50"
+        />
+
+        <div class="slider-scale">
+          <span>0%</span>
+          <span>50%</span>
+          <span>100%</span>
+        </div>
+      </article>
+
+
+      <!-- Servo 2 -->
+      <article class="control-card">
+        <div class="card-header">
+          <div>
+            <p class="card-label">Actuator control</p>
+            <h2>Servo 2</h2>
+          </div>
+
+          <output
+            id="servo2Value"
+            class="value-badge"
+            for="servo2Slider"
+          >
+            50%
+          </output>
+        </div>
+
+        <label for="servo2Slider" class="slider-label">
+          Intensity
+        </label>
+
+        <input
+          id="servo2Slider"
+          class="intensity-slider"
+          type="range"
+          min="0"
+          max="100"
+          step="1"
+          value="50"
+        />
+
+        <div class="slider-scale">
+          <span>0%</span>
+          <span>50%</span>
+          <span>100%</span>
+        </div>
+      </article>
+
+    </section>
+
+
+    <!-- Pattern controls -->
+    <section class="patterns-section">
+      <div class="section-heading">
+        <div>
+          <p class="card-label">Pattern execution</p>
+          <h2>Haptic Patterns</h2>
+        </div>
+
+        <span
+          id="systemStateBadge"
+          class="system-state"
+        >
+          Ready
+        </span>
+      </div>
+
+      <div class="pattern-grid">
+
+        <button
+          type="button"
+          class="pattern-button"
+          data-pattern="1"
+        >
+          <span class="pattern-number">01</span>
+          <span class="pattern-name">Scratch</span>
+        </button>
+
+        <button
+          type="button"
+          class="pattern-button"
+          data-pattern="2"
+        >
+          <span class="pattern-number">02</span>
+          <span class="pattern-name">Crack</span>
+        </button>
+
+        <button
+          type="button"
+          class="pattern-button"
+          data-pattern="3"
+        >
+          <span class="pattern-number">03</span>
+          <span class="pattern-name">Dent</span>
+        </button>
+
+        <button
+          type="button"
+          class="pattern-button"
+          data-pattern="4"
+        >
+          <span class="pattern-number">04</span>
+          <span class="pattern-name">Bump</span>
+        </button>
+
+      </div>
+    </section>
+
+
+    <!-- System controls -->
+    <section class="system-controls">
+
+      <button
+        id="neutralButton"
+        type="button"
+        class="secondary-button"
+      >
+        Neutral Position
+      </button>
+
+      <button
+        id="stopButton"
+        type="button"
+        class="danger-button"
+      >
+        Emergency Stop
+      </button>
+
+    </section>
+
+
+    <!-- Status -->
+    <section class="status-panel" aria-live="polite">
+
+      <div class="status-row">
+        <span class="status-label">System status</span>
+        <strong id="statusMessage">Ready</strong>
+      </div>
+
+      <div class="status-row">
+        <span class="status-label">Active pattern</span>
+        <strong id="activePattern">None</strong>
+      </div>
+
+      <div class="status-row">
+        <span class="status-label">Servo 1 intensity</span>
+        <strong id="servo1Status">50%</strong>
+      </div>
+
+      <div class="status-row">
+        <span class="status-label">Servo 2 intensity</span>
+        <strong id="servo2Status">50%</strong>
+      </div>
+
+    </section>
+
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
