@@ -25,8 +25,8 @@
 // Wi-Fi and servers
 // ============================================================
 
-const char* WIFI_NAME = "Change_Me";
-const char* WIFI_PASSWORD = "Change_Me";
+const char* WIFI_NAME = "aptic-Control";
+const char* WIFI_PASSWORD = "";
 
 WebServer server(80);
 WebSocketsServer webSocket(81);
@@ -53,6 +53,7 @@ constexpr uint32_t SERIAL_BAUD_RATE = 115200;
 unsigned long patternCommandReceivedUs = 0;
 bool latencyMeasurementActive = false;
 
+String latencySource = "";
 
 // ============================================================
 // Pattern definition
@@ -296,9 +297,9 @@ void moveServo(int8_t relativePosition) {
   Serial.print("SERVO_1_ANGLE:");
   Serial.println(targetAngle);
 
-
   if (
     latencyMeasurementActive && relativePosition != 0) {
+
     const unsigned long firstMovementUs =
       micros();
 
@@ -308,14 +309,14 @@ void moveServo(int8_t relativePosition) {
     const float latencyMs =
       latencyUs / 1000.0f;
 
+    Serial.print(latencySource);
     Serial.print(
-      "WEBSOCKET_TO_FIRST_SERVO_MOVEMENT_LATENCY_MS:");
+      "_TO_FIRST_SERVO_COMMAND_LATENCY_MS:");
 
-    Serial.println(
-      latencyMs,
-      3);
+    Serial.println(latencyMs, 3);
 
     latencyMeasurementActive = false;
+    latencySource = "";
   }
 }
 
@@ -475,7 +476,8 @@ bool playPatternNumber(char command) {
 
 bool processCommand(
   String command,
-  const char* source) {
+  const char* source,
+  uint8_t clientNumber = 0) {
   command.trim();
   command.toUpperCase();
 
@@ -487,6 +489,20 @@ bool processCommand(
   Serial.print(source);
   Serial.print(":");
   Serial.println(command);
+
+
+  if (command.startsWith("PING:")) {
+
+    String id = command.substring(5);
+
+    unsigned long receiveTime = micros();
+
+    webSocket.sendTXT(
+      clientNumber,
+      "PONG:" + id + ":" + String(receiveTime));
+
+    return true;
+  }
 
 
   // Serial commands: 1, 2, 3, 4, 0, 9
@@ -579,9 +595,37 @@ void updateSerialInput() {
     if (
       incomingCharacter == '\n' || incomingCharacter == '\r') {
       if (serialInputBuffer.length() > 0) {
-        processCommand(
-          serialInputBuffer,
-          "SERIAL");
+
+        String command = serialInputBuffer;
+
+        serialInputBuffer = "";
+
+        command.trim();
+        command.toUpperCase();
+
+        if (
+          command == "1" || command == "2" || command == "3" || command == "4") {
+
+          patternCommandReceivedUs = micros();
+          latencyMeasurementActive = true;
+          latencySource = "SERIAL";
+
+          Serial.print(
+            "SERIAL_LATENCY_TIMER_STARTED_US:");
+
+          Serial.println(
+            patternCommandReceivedUs);
+        }
+
+        const bool success =
+          processCommand(
+            command,
+            "SERIAL");
+
+        if (!success) {
+          latencyMeasurementActive = false;
+          latencySource = "";
+        }
 
         serialInputBuffer = "";
       }
@@ -593,6 +637,9 @@ void updateSerialInput() {
 
     if (serialInputBuffer.length() > 50) {
       serialInputBuffer = "";
+
+      latencyMeasurementActive = false;
+      latencySource = "";
 
       Serial.println(
         "ERROR:SERIAL_COMMAND_TOO_LONG");
@@ -647,14 +694,21 @@ void handleWebSocketEvent(
         command.trim();
         command.toUpperCase();
 
+        if (command.startsWith("PING:")) {
+          processCommand(command, "WEBSOCKET", clientNumber);
+          return;
+        }
+
         Serial.print("WEBSOCKET_RECEIVED:");
         Serial.println(command);
 
-     
+
         if (
           command == "P:1" || command == "P:2" || command == "P:3" || command == "P:4") {
           patternCommandReceivedUs = micros();
           latencyMeasurementActive = true;
+
+          latencySource = "WEBSOCKET";
 
           Serial.print(
             "LATENCY_TIMER_STARTED_US:");
@@ -666,10 +720,11 @@ void handleWebSocketEvent(
         const bool success =
           processCommand(
             command,
-            "WEBSOCKET");
-
+            "WEBSOCKET",
+            clientNumber);
         if (!success) {
           latencyMeasurementActive = false;
+          latencySource = "";
         }
 
         break;
