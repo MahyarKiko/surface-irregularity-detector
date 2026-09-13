@@ -9,11 +9,14 @@ const DEMO_MODE = false;
 const ESP32_WEBSOCKET_URL = "ws://192.168.4.1:81/";
 
 const SERVO_1_ENABLED = true;
-const SERVO_2_ENABLED = false;
+const SERVO_2_ENABLED = true;
 
 const RECONNECT_DELAY_MS = 1500;
 const COMMAND_TIMEOUT_MS = 4000;
 const SLIDER_SEND_DELAY_MS = 180;
+
+const SYNC_SAMPLE_COUNT = 10;
+const SYNC_TIMEOUT_MS = 2000;
 
 /* 
    DOM elements */
@@ -26,6 +29,16 @@ const servo1Slider = document.getElementById("servo1Slider");
 
 const servo2Slider = document.getElementById("servo2Slider");
 
+const servo1StartSlider = document.getElementById("servo1StartSlider");
+const servo2StartSlider = document.getElementById("servo2StartSlider");
+
+const servo1StartValue = document.getElementById("servo1StartValue");
+const servo2StartValue = document.getElementById("servo2StartValue");
+
+const servo1EnabledCheckbox = document.getElementById("servo1Enabled");
+
+const servo2EnabledCheckbox = document.getElementById("servo2Enabled");
+
 const servo1Value = document.getElementById("servo1Value");
 
 const servo2Value = document.getElementById("servo2Value");
@@ -36,6 +49,15 @@ const servo2Status = document.getElementById("servo2Status");
 
 const patternButtons = document.querySelectorAll(".pattern-button");
 
+const editPatternButton = document.getElementById("editPatternButton");
+const patternEditor = document.getElementById("patternEditor");
+const patternEditorSelect = document.getElementById("patternEditorSelect");
+
+const patternSteps = document.getElementById("patternSteps");
+const addPatternStepButton = document.getElementById("addPatternStepButton");
+const resetPatternButton = document.getElementById("resetPatternButton");
+const applyPatternButton = document.getElementById("applyPatternButton");
+
 const neutralButton = document.getElementById("neutralButton");
 
 const stopButton = document.getElementById("stopButton");
@@ -45,6 +67,14 @@ const systemStateBadge = document.getElementById("systemStateBadge");
 const statusMessage = document.getElementById("statusMessage");
 
 const activePattern = document.getElementById("activePattern");
+
+const communicationLatency = document.getElementById("communicationLatency");
+
+const internalLatency = document.getElementById("internalLatency");
+
+const totalLatency = document.getElementById("totalLatency");
+
+const syncLatency = document.getElementById("syncLatency");
 
 /* 
    Pattern information */
@@ -61,6 +91,15 @@ const patternIdsByName = {
   Crack: 2,
   Dent: 3,
   Bump: 4,
+};
+
+let currentEditorPatternNumber = Number(patternEditorSelect.value);
+
+const patternEditorDrafts = {
+  1: [], // Scratch
+  2: [], // Crack
+  3: [], // Dent
+  4: [], // Bump
 };
 
 /* 
@@ -82,6 +121,9 @@ const appState = {
   servo1Intensity: Number(servo1Slider.value),
 
   servo2Intensity: Number(servo2Slider.value),
+
+  servo1StartAngle: Number(servo1StartSlider.value),
+  servo2StartAngle: Number(servo2StartSlider.value),
 };
 
 /* 
@@ -101,6 +143,16 @@ let servo2Timer = null;
 let commandSequence = Promise.resolve();
 
 let pendingCommand = null;
+
+let pendingPing = null;
+
+let clockOffsetUs = null;
+let bestSyncRttUs = null;
+
+let webCommandSequence = 1;
+let activeWebMeasurement = null;
+
+const webLatencyResults = [];
 
 /* 
    General utilities*/
@@ -206,6 +258,44 @@ function updateServoDisplay(servoNumber, value) {
   }
 }
 
+function updateStartPositionDisplay(servoNumber, angle) {
+  const safeAngle = Math.max(35, Math.min(170, Math.round(Number(angle))));
+
+  if (servoNumber === 1) {
+    appState.servo1StartAngle = safeAngle;
+    servo1StartSlider.value = safeAngle;
+    servo1StartValue.textContent = `${safeAngle}°`;
+  }
+
+  if (servoNumber === 2) {
+    appState.servo2StartAngle = safeAngle;
+    servo2StartSlider.value = safeAngle;
+    servo2StartValue.textContent = `${safeAngle}°`;
+  }
+}
+
+function sendServoStartPosition(servoNumber, angle) {
+  if (!socket || socket.readyState !== WebSocket.OPEN) {
+    setSystemState("Offline", "ESP32 is not connected");
+    return;
+  }
+
+  if (appState.running) {
+    return;
+  }
+
+  const safeAngle = Math.max(35, Math.min(170, Math.round(Number(angle))));
+
+  socket.send(`S${servoNumber}:${safeAngle}`);
+
+  console.log("[WEBSOCKET SENT]", `S${servoNumber}:${safeAngle}`);
+
+  setSystemState(
+    "Ready",
+    `Servo ${servoNumber} start position set to ${safeAngle}°`,
+  );
+}
+
 function configureServoAvailability() {
   servo1Slider.disabled = !SERVO_1_ENABLED;
 
@@ -271,7 +361,7 @@ function applyStatus(status) {
       highlightPatternButton(patternId);
     }
 
-    setPatternControlsDisabled(false);
+    setPatternControlsDisabled(true);
 
     setSystemState("Running", `${receivedPatternName} pattern is running`);
 
@@ -327,6 +417,216 @@ function resolvePendingCommand(response) {
   pendingCommand = null;
 
   resolve(response);
+}
+
+function computerTimeUs() {
+  return performance.now() * 1000;
+}
+
+function handlePongMessage(rawMessage) {
+  const parts = rawMessage.split(":");
+
+  if (parts.length !== 4 || parts[0] !== "PONG") {
+    return false;
+  }
+
+  if (!pendingPing || pendingPing.id !== parts[1]) {
+    console.warn("[SYNC] Unexpected PONG", rawMessage);
+
+    return true;
+  }
+
+  const computerReceiveUs = computerTimeUs();
+
+  const espReceiveUs = Number(parts[2]);
+  const espSendUs = Number(parts[3]);
+
+  if (!Number.isFinite(espReceiveUs) || !Number.isFinite(espSendUs)) {
+    pendingPing.reject(new Error("Invalid ESP32 timestamp"));
+
+    pendingPing = null;
+    return true;
+  }
+
+  clearTimeout(pendingPing.timeoutTimer);
+
+  const roundTripUs =
+    computerReceiveUs - pendingPing.computerSendUs - (espSendUs - espReceiveUs);
+
+  const clockOffset =
+    (espReceiveUs -
+      pendingPing.computerSendUs +
+      (espSendUs - computerReceiveUs)) /
+    2;
+
+  const resolve = pendingPing.resolve;
+
+  pendingPing = null;
+
+  resolve({
+    roundTripUs,
+    clockOffsetUs: clockOffset,
+  });
+
+  return true;
+}
+
+function sendSyncPing(sampleNumber) {
+  return new Promise((resolve, reject) => {
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      reject(new Error("WebSocket is not connected"));
+      return;
+    }
+
+    const id = `WS${sampleNumber}`;
+
+    const timeoutTimer = setTimeout(() => {
+      pendingPing = null;
+
+      reject(new Error(`Sync timeout: ${id}`));
+    }, SYNC_TIMEOUT_MS);
+
+    pendingPing = {
+      id,
+      computerSendUs: computerTimeUs(),
+      resolve,
+      reject,
+      timeoutTimer,
+    };
+
+    socket.send(`PING:${id}`);
+  });
+}
+
+async function synchronizeWebSocketClocks() {
+  const samples = [];
+
+  syncLatency.textContent = "Synchronizing...";
+
+  for (
+    let sampleNumber = 1;
+    sampleNumber <= SYNC_SAMPLE_COUNT;
+    sampleNumber++
+  ) {
+    const sample = await sendSyncPing(sampleNumber);
+
+    samples.push(sample);
+
+    console.log(
+      `[SYNC ${sampleNumber}] RTT: ` +
+        `${(sample.roundTripUs / 1000).toFixed(3)} ms`,
+    );
+
+    await wait(100);
+  }
+
+  const bestSample = samples.reduce((best, sample) =>
+    sample.roundTripUs < best.roundTripUs ? sample : best,
+  );
+
+  clockOffsetUs = bestSample.clockOffsetUs;
+  bestSyncRttUs = bestSample.roundTripUs;
+
+  syncLatency.textContent = `${(bestSyncRttUs / 1000).toFixed(3)} ms`;
+
+  console.log(
+    "[SYNC] Ready. Best RTT:",
+    `${(bestSyncRttUs / 1000).toFixed(3)} ms`,
+  );
+}
+
+function handleLatencyResult(message) {
+  if (!activeWebMeasurement) {
+    console.warn("[LATENCY] Result without active measurement", message);
+    return;
+  }
+
+  if (message.id !== activeWebMeasurement.commandId) {
+    console.warn("[LATENCY] Command ID does not match", message);
+    return;
+  }
+
+  if (clockOffsetUs === null) {
+    console.error("[LATENCY] Clocks are not synchronized");
+    return;
+  }
+
+  const espReceivedUs = Number(message.receivedUs);
+
+  const firstPwmUs = Number(message.firstPwmUs);
+
+  const internalLatencyUs = Number(message.internalLatencyUs);
+
+  if (
+    !Number.isFinite(espReceivedUs) ||
+    !Number.isFinite(firstPwmUs) ||
+    !Number.isFinite(internalLatencyUs)
+  ) {
+    console.error("[LATENCY] Invalid result", message);
+    return;
+  }
+
+  const receivedOnBrowserClockUs = espReceivedUs - clockOffsetUs;
+
+  const pwmOnBrowserClockUs = firstPwmUs - clockOffsetUs;
+
+  const communicationUs =
+    receivedOnBrowserClockUs - activeWebMeasurement.userActionUs;
+
+  const totalUs = pwmOnBrowserClockUs - activeWebMeasurement.userActionUs;
+
+  const result = {
+    recordedAt: new Date().toISOString(),
+    commandId: activeWebMeasurement.commandId,
+    source: "WEBSOCKET",
+    patternId: activeWebMeasurement.patternId,
+    patternName: activeWebMeasurement.patternName,
+    servo1Intensity: activeWebMeasurement.servo1Intensity,
+    servo2Intensity: activeWebMeasurement.servo2Intensity,
+    communicationMs: communicationUs / 1000,
+    internalMs: internalLatencyUs / 1000,
+    totalMs: totalUs / 1000,
+    syncRttMs: bestSyncRttUs / 1000,
+  };
+
+  webLatencyResults.push(result);
+
+  localStorage.setItem(
+    "hapticWebSocketLatencyResults",
+    JSON.stringify(webLatencyResults),
+  );
+
+  communicationLatency.textContent = `${result.communicationMs.toFixed(3)} ms`;
+
+  internalLatency.textContent = `${result.internalMs.toFixed(3)} ms`;
+
+  totalLatency.textContent = `${result.totalMs.toFixed(3)} ms`;
+
+  syncLatency.textContent = `${result.syncRttMs.toFixed(3)} ms`;
+
+  console.log("[LATENCY RESULT]", result);
+  console.table(result);
+
+  const serialResultMessage = [
+    "WEB_RESULT",
+    result.commandId,
+    result.patternName,
+    result.servo1Intensity,
+    result.servo2Intensity,
+    result.communicationMs.toFixed(3),
+    result.internalMs.toFixed(3),
+    result.totalMs.toFixed(3),
+    result.syncRttMs.toFixed(3),
+  ].join(":");
+
+  socket.send(serialResultMessage);
+
+  setSystemState(
+    "Measured",
+    `${result.patternName}: ` + `${result.totalMs.toFixed(3)} ms total latency`,
+  );
+
+  activeWebMeasurement = null;
 }
 
 /* 
@@ -387,26 +687,41 @@ function connectWebSocket() {
 
   socket.addEventListener("error", handleSocketError);
 }
-
-function handleSocketOpen() {
+async function handleSocketOpen() {
   console.log("[WEBSOCKET] Connected");
 
   appState.connecting = false;
 
   setConnectionState(true);
+  setPatternControlsDisabled(true);
 
-setPatternControlsDisabled(false);
+  setSystemState("Synchronizing", "Synchronizing clocks with ESP32...");
 
-  setSystemState("Ready", "WebSocket connected to ESP32");
+  try {
+    await synchronizeWebSocketClocks();
 
-  /*
-   * Ask for the latest state.
-   * The ESP32 also sends status automatically
-   * immediately after connection.
-   */
-  sendCommand("STATUS").catch((error) => {
-    console.warn("[STATUS REQUEST FAILED]", error);
-  });
+    sendCurrentServoConfiguration();
+
+    // Give the ESP32 time to process configuration.
+    await wait(100);
+
+    socket.send("STATUS");
+
+    setPatternControlsDisabled(false);
+
+    setSystemState("Ready", "WebSocket synchronized with ESP32");
+  } catch (error) {
+    console.error("[SYNC ERROR]", error);
+
+    clockOffsetUs = null;
+    bestSyncRttUs = null;
+
+    syncLatency.textContent = "Synchronization failed";
+
+    setPatternControlsDisabled(true);
+
+    setSystemState("Error", "Clock synchronization failed");
+  }
 }
 
 function handleSocketClose(event) {
@@ -438,6 +753,11 @@ function handleSocketError(event) {
 function handleSocketMessage(event) {
   console.log("[WEBSOCKET RECEIVED]", event.data);
 
+  if (typeof event.data === "string" && event.data.startsWith("PONG:")) {
+    handlePongMessage(event.data);
+    return;
+  }
+
   let message;
 
   try {
@@ -456,6 +776,11 @@ function handleSocketMessage(event) {
 
   if (message.type === "status") {
     applyStatus(message);
+    return;
+  }
+
+  if (message.type === "latencyResult") {
+    handleLatencyResult(message);
     return;
   }
 
@@ -553,46 +878,70 @@ function sendCommand(command) {
   return result;
 }
 
+function sendCurrentServoConfiguration() {
+  if (!socket || socket.readyState !== WebSocket.OPEN) {
+    return;
+  }
+
+  const servo1Selected = servo1EnabledCheckbox.checked;
+
+  const servo2Selected = servo2EnabledCheckbox.checked;
+
+  const servo1Intensity = clampPercentage(appState.servo1Intensity);
+
+  const servo2Intensity = clampPercentage(appState.servo2Intensity);
+
+  socket.send(`E1:${servo1Selected ? 1 : 0}`);
+
+  socket.send(`E2:${servo2Selected ? 1 : 0}`);
+
+  socket.send(`I1:${servo1Intensity}`);
+
+  socket.send(`I2:${servo2Intensity}`);
+
+  socket.send(`S1:${appState.servo1StartAngle}`);
+  socket.send(`S2:${appState.servo2StartAngle}`);
+
+  console.log("[SERVO CONFIGURATION SENT]", {
+    servo1Selected,
+    servo2Selected,
+    servo1Intensity,
+    servo2Intensity,
+    servo1StartAngle: appState.servo1StartAngle,
+    servo2StartAngle: appState.servo2StartAngle,
+  });
+}
+
 /* 
    Servo intensity */
 
-async function sendServoIntensity(servoNumber, intensity) {
+function sendServoIntensity(servoNumber, intensity) {
   const enabled = servoNumber === 1 ? SERVO_1_ENABLED : SERVO_2_ENABLED;
 
   if (!enabled) {
     setSystemState("Info", `Servo ${servoNumber} is not connected`);
-
     return;
   }
 
-  if (!appState.connected) {
+  if (!socket || socket.readyState !== WebSocket.OPEN) {
     setSystemState("Offline", "ESP32 is not connected");
-
     return;
   }
 
-  if (appState.running || appState.busy) {
+  if (appState.running) {
     return;
   }
 
   const safeIntensity = clampPercentage(intensity);
 
-  try {
-    const response = await sendCommand(`I${servoNumber}:${safeIntensity}`);
+  socket.send(`I${servoNumber}:${safeIntensity}`);
 
-    if (response.success === false) {
-      throw new Error(
-        `ESP32 rejected intensity command for Servo ${servoNumber}`,
-      );
-    }
+  console.log("[WEBSOCKET SENT]", `I${servoNumber}:${safeIntensity}`);
 
-    setSystemState(
-      "Ready",
-      `Servo ${servoNumber} intensity set to ${safeIntensity}%`,
-    );
-  } catch (error) {
-    handleCommunicationError(error);
-  }
+  setSystemState(
+    "Ready",
+    `Servo ${servoNumber} intensity set to ` + `${safeIntensity}%`,
+  );
 }
 
 function scheduleServoUpdate(servoNumber, intensity) {
@@ -633,16 +982,281 @@ servo2Slider.addEventListener("input", (event) => {
   scheduleServoUpdate(2, intensity);
 });
 
-/* 
-   Pattern execution */
+servo1StartSlider.addEventListener("input", (event) => {
+  const angle = Number(event.target.value);
+
+  updateStartPositionDisplay(1, angle);
+
+  sendServoStartPosition(1, angle);
+});
+
+servo2StartSlider.addEventListener("input", (event) => {
+  const angle = Number(event.target.value);
+
+  updateStartPositionDisplay(2, angle);
+
+  sendServoStartPosition(2, angle);
+});
+
+servo1EnabledCheckbox.addEventListener("change", () => {
+  if (socket && socket.readyState === WebSocket.OPEN) {
+    socket.send(`E1:${servo1EnabledCheckbox.checked ? 1 : 0}`);
+  }
+});
+
+servo2EnabledCheckbox.addEventListener("change", () => {
+  if (socket && socket.readyState === WebSocket.OPEN) {
+    socket.send(`E2:${servo2EnabledCheckbox.checked ? 1 : 0}`);
+  }
+});
+
+editPatternButton.addEventListener("click", () => {
+  patternEditor.hidden = !patternEditor.hidden;
+
+  editPatternButton.textContent = patternEditor.hidden
+    ? "Edit Pattern"
+    : "Close Pattern Editor";
+});
+
+function addPatternStep(
+  servo1Position = 0,
+  servo2Position = 0,
+  duration = 400,
+) {
+  const stepNumber = patternSteps.children.length + 1;
+
+  const step = document.createElement("div");
+  step.className = "pattern-step";
+
+  step.innerHTML = `
+    <label>
+      Servo 1 Position
+      <input
+        type="number"
+        class="step-servo1"
+        min="-100"
+        max="100"
+        value="${servo1Position}"
+      >
+    </label>
+
+    <label>
+      Servo 2 Position
+      <input
+        type="number"
+        class="step-servo2"
+        min="-100"
+        max="100"
+        value="${servo2Position}"
+      >
+    </label>
+
+    <label>
+      Duration (ms)
+      <input
+        type="number"
+        class="step-duration"
+        min="1"
+        value="${duration}"
+      >
+    </label>
+
+    <button
+  type="button"
+  class="remove-step-button"
+  aria-label="Remove step"
+  title="Remove step"
+>
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    aria-hidden="true"
+  >
+    <path
+      d="M3 6H21"
+      stroke-width="2"
+      stroke-linecap="round"
+    />
+    <path
+      d="M8 6V4C8 3.44772 8.44772 3 9 3H15C15.5523 3 16 3.44772 16 4V6"
+      stroke-width="2"
+      stroke-linecap="round"
+    />
+    <path
+      d="M19 6L18.1333 18.142C18.0584 19.1893 17.1871 20 16.1371 20H7.86294C6.8129 20 5.94164 19.1893 5.86667 18.142L5 6"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    <path
+      d="M10 11V16"
+      stroke-width="2"
+      stroke-linecap="round"
+    />
+    <path
+      d="M14 11V16"
+      stroke-width="2"
+      stroke-linecap="round"
+    />
+  </svg>
+</button>
+  `;
+
+  step.dataset.step = stepNumber;
+
+  patternSteps.appendChild(step);
+}
+
+function readPatternEditorSteps() {
+  const steps = patternSteps.querySelectorAll(".pattern-step");
+
+  return Array.from(steps).map((step) => ({
+    servo1Position: Number(step.querySelector(".step-servo1").value),
+    servo2Position: Number(step.querySelector(".step-servo2").value),
+    duration: Number(step.querySelector(".step-duration").value),
+  }));
+}
+
+function saveCurrentPatternDraft() {
+  patternEditorDrafts[currentEditorPatternNumber] = readPatternEditorSteps();
+}
+
+function showPatternDraft(patternNumber) {
+  patternSteps.innerHTML = "";
+
+  const steps = patternEditorDrafts[patternNumber];
+
+  for (const step of steps) {
+    addPatternStep(step.servo1Position, step.servo2Position, step.duration);
+  }
+}
+
+addPatternStepButton.addEventListener("click", () => {
+  addPatternStep();
+});
+
+patternSteps.addEventListener("click", (event) => {
+  const removeButton = event.target.closest(".remove-step-button");
+
+  if (!removeButton) {
+    return;
+  }
+
+  const step = removeButton.closest(".pattern-step");
+
+  if (step) {
+    step.remove();
+  }
+});
+
+patternEditorSelect.addEventListener("change", (event) => {
+  saveCurrentPatternDraft();
+
+  currentEditorPatternNumber = Number(event.target.value);
+
+  showPatternDraft(currentEditorPatternNumber);
+});
+
+resetPatternButton.addEventListener("click", () => {
+  if (!socket || socket.readyState !== WebSocket.OPEN) {
+    setSystemState("Offline", "ESP32 is not connected");
+    return;
+  }
+
+  if (appState.running) {
+    return;
+  }
+
+  patternEditorDrafts[currentEditorPatternNumber] = [];
+
+  showPatternDraft(currentEditorPatternNumber);
+
+  const command = `RESET_PATTERN:${currentEditorPatternNumber}`;
+
+  socket.send(command);
+
+  console.log("[PATTERN RESET]", command);
+
+  setSystemState(
+    "Ready",
+    `${patternNames[currentEditorPatternNumber]} reset to default`,
+  );
+});
+
+applyPatternButton.addEventListener("click", () => {
+  if (!socket || socket.readyState !== WebSocket.OPEN) {
+    setSystemState("Offline", "ESP32 is not connected");
+    return;
+  }
+
+  if (appState.running) {
+    return;
+  }
+
+  const patternNumber = Number(patternEditorSelect.value);
+
+  const steps = patternSteps.querySelectorAll(".pattern-step");
+
+  if (steps.length === 0) {
+    setSystemState("Ready", "Add at least one pattern step");
+    return;
+  }
+
+  const patternData = [];
+
+  for (const step of steps) {
+    const servo1Position = Number(step.querySelector(".step-servo1").value);
+
+    const servo2Position = Number(step.querySelector(".step-servo2").value);
+
+    const duration = Number(step.querySelector(".step-duration").value);
+
+    if (
+      servo1Position < -100 ||
+      servo1Position > 100 ||
+      servo2Position < -100 ||
+      servo2Position > 100 ||
+      duration < 1
+    ) {
+      setSystemState("Ready", "Invalid pattern values");
+      return;
+    }
+
+    patternData.push(`${servo1Position},${servo2Position},${duration}`);
+  }
+
+  const command = `SET_PATTERN:${patternNumber}:${patternData.join(";")}`;
+
+  socket.send(command);
+
+  console.log("[PATTERN SENT]", command);
+
+  setSystemState("Ready", `Pattern ${patternNumber} updated`);
+});
 
 /* 
    Pattern execution
 */
 
-function runPattern(patternId) {
+function runPattern(patternId, userActionUs) {
   if (!appState.connected) {
     setSystemState("Offline", "ESP32 is not connected");
+    return;
+  }
+
+  if (!socket || socket.readyState !== WebSocket.OPEN) {
+    setSystemState("Offline", "WebSocket is not connected");
+    return;
+  }
+
+  if (clockOffsetUs === null) {
+    setSystemState("Error", "Clocks are not synchronized");
+    return;
+  }
+
+  if (activeWebMeasurement !== null) {
+    setSystemState("Busy", "Another measurement is active");
     return;
   }
 
@@ -653,16 +1267,27 @@ function runPattern(patternId) {
     return;
   }
 
-  if (!socket || socket.readyState !== WebSocket.OPEN) {
-    setSystemState("Offline", "WebSocket is not connected");
+  const servo1Selected = servo1EnabledCheckbox.checked;
+
+  const servo2Selected = servo2EnabledCheckbox.checked;
+
+  if (!servo1Selected && !servo2Selected) {
+    setSystemState("Error", "Select at least one servo");
     return;
   }
 
-  clearTimeout(servo1Timer);
-  servo1Timer = null;
+  const commandId = `W${webCommandSequence}`;
 
-  const currentIntensity =
-    clampPercentage(appState.servo1Intensity);
+  webCommandSequence += 1;
+
+  activeWebMeasurement = {
+    commandId,
+    patternId,
+    patternName,
+    userActionUs,
+    servo1Intensity: clampPercentage(appState.servo1Intensity),
+    servo2Intensity: clampPercentage(appState.servo2Intensity),
+  };
 
   appState.activePattern = patternId;
 
@@ -670,37 +1295,32 @@ function runPattern(patternId) {
 
   highlightPatternButton(patternId);
 
-  setPatternControlsDisabled(false);
+  setPatternControlsDisabled(true);
 
-  socket.send(`I1:${currentIntensity}`);
-  console.log(
-    "[WEBSOCKET SENT]",
-    `I1:${currentIntensity}`
-  );
+  const command = `RUN:${commandId}:${patternId}`;
 
-  socket.send(`P:${patternId}`);
-  console.log(
-    "[WEBSOCKET SENT]",
-    `P:${patternId}`
-  );
+  socket.send(command);
 
-  setSystemState(
-    "Running",
-    `${patternName} command sent`
-  );
+  console.log("[WEBSOCKET SENT]", command);
+
+  setSystemState("Running", `${patternName} measurement started`);
 }
 
 patternButtons.forEach((button) => {
   button.addEventListener("click", () => {
+    // T0: the pattern button was activated
+    // by mouse, touch, keyboard or trackpad.
+    const userActionUs = computerTimeUs();
+
     const patternId = Number(button.dataset.pattern);
-    runPattern(patternId);
+
+    runPattern(patternId, userActionUs);
   });
 });
 
 /* 
    Neutral
 */
-
 
 neutralButton.addEventListener("click", async () => {
   if (!appState.connected) {
@@ -793,6 +1413,9 @@ async function initialiseApplication() {
   updateServoDisplay(1, servo1Slider.value);
 
   updateServoDisplay(2, servo2Slider.value);
+
+  updateStartPositionDisplay(1, servo1StartSlider.value);
+  updateStartPositionDisplay(2, servo2StartSlider.value);
 
   configureServoAvailability();
 

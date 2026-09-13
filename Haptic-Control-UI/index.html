@@ -1,232 +1,326 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
+  <head>
+    <meta charset="UTF-8" />
 
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0"
-  />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <title>Haptic Control Hub</title>
+    <title>Haptic Control Hub</title>
 
-  <link rel="stylesheet" href="style.css" />
-</head>
+    <link rel="stylesheet" href="style.css" />
+  </head>
 
-<body>
-  <main class="app-container">
-
-    <header class="app-header">
-      <div>
-        <p class="eyebrow">Haptic Wearable System</p>
-        <h1>Haptic Control Hub</h1>
-        <p class="subtitle">
-          Control both servos and execute haptic patterns.
-        </p>
-      </div>
-
-      <div class="connection-status">
-        <span
-          id="connectionIndicator"
-          class="status-indicator status-disconnected"
-        ></span>
-
-        <span id="connectionText">
-          Disconnected
-        </span>
-      </div>
-    </header>
-
-
-    <section class="control-grid">
-
-      <!-- Servo 1 -->
-      <article class="control-card">
-        <div class="card-header">
-          <div>
-            <p class="card-label">Actuator control</p>
-            <h2>Servo 1</h2>
-          </div>
-
-          <output
-            id="servo1Value"
-            class="value-badge"
-            for="servo1Slider"
-          >
-            50%
-          </output>
-        </div>
-
-        <label for="servo1Slider" class="slider-label">
-          Intensity
-        </label>
-
-        <input
-          id="servo1Slider"
-          class="intensity-slider"
-          type="range"
-          min="0"
-          max="100"
-          step="1"
-          value="50"
-        />
-
-        <div class="slider-scale">
-          <span>0%</span>
-          <span>50%</span>
-          <span>100%</span>
-        </div>
-      </article>
-
-
-      <!-- Servo 2 -->
-      <article class="control-card">
-        <div class="card-header">
-          <div>
-            <p class="card-label">Actuator control</p>
-            <h2>Servo 2</h2>
-          </div>
-
-          <output
-            id="servo2Value"
-            class="value-badge"
-            for="servo2Slider"
-          >
-            50%
-          </output>
-        </div>
-
-        <label for="servo2Slider" class="slider-label">
-          Intensity
-        </label>
-
-        <input
-          id="servo2Slider"
-          class="intensity-slider"
-          type="range"
-          min="0"
-          max="100"
-          step="1"
-          value="50"
-        />
-
-        <div class="slider-scale">
-          <span>0%</span>
-          <span>50%</span>
-          <span>100%</span>
-        </div>
-      </article>
-
-    </section>
-
-
-    <!-- Pattern controls -->
-    <section class="patterns-section">
-      <div class="section-heading">
+  <body>
+    <main class="app-container">
+      <header class="app-header">
         <div>
-          <p class="card-label">Pattern execution</p>
-          <h2>Haptic Patterns</h2>
+          <p class="eyebrow">Haptic Wearable System</p>
+          <h1>Haptic Control Hub</h1>
+          <p class="subtitle">
+            Control both servos and execute haptic patterns.
+          </p>
         </div>
 
-        <span
-          id="systemStateBadge"
-          class="system-state"
-        >
-          Ready
-        </span>
-      </div>
+        <div class="connection-status">
+          <span
+            id="connectionIndicator"
+            class="status-indicator status-disconnected"
+          ></span>
 
-      <div class="pattern-grid">
+          <span id="connectionText"> Disconnected </span>
+        </div>
+      </header>
 
-        <button
-          type="button"
-          class="pattern-button"
-          data-pattern="1"
-        >
-          <span class="pattern-number">01</span>
-          <span class="pattern-name">Scratch</span>
+      <section class="control-grid">
+        <!-- Servo 1 -->
+        <article class="control-card">
+          <div class="card-header">
+            <div>
+              <p class="card-label">Actuator control</p>
+              <h2>Servo 1</h2>
+            </div>
+
+            <output id="servo1Value" class="value-badge" for="servo1Slider">
+              50%
+            </output>
+          </div>
+
+          <label for="servo1Slider" class="slider-label"> Intensity </label>
+
+          <input
+            id="servo1Slider"
+            class="intensity-slider"
+            type="range"
+            min="0"
+            max="100"
+            step="1"
+            value="50"
+          />
+
+          <div class="slider-scale">
+            <span>0%</span>
+            <span>50%</span>
+            <span>100%</span>
+          </div>
+
+          <div class="start-position-control">
+            <div class="start-position-header">
+              <label for="servo1StartSlider" class="slider-label">
+                Start Position
+              </label>
+
+              <output
+                id="servo1StartValue"
+                class="angle-badge"
+                for="servo1StartSlider"
+              >
+                90°
+              </output>
+            </div>
+
+            <input
+              id="servo1StartSlider"
+              class="start-position-slider"
+              type="range"
+              min="35"
+              max="170"
+              step="1"
+              value="90"
+            />
+
+            <div class="slider-scale">
+              <span>35°</span>
+              <span>90°</span>
+              <span>170°</span>
+            </div>
+          </div>
+        </article>
+
+        <!-- Servo 2 -->
+        <article class="control-card">
+          <div class="card-header">
+            <div>
+              <p class="card-label">Actuator control</p>
+              <h2>Servo 2</h2>
+            </div>
+
+            <output id="servo2Value" class="value-badge" for="servo2Slider">
+              50%
+            </output>
+          </div>
+
+          <label for="servo2Slider" class="slider-label"> Intensity </label>
+
+          <input
+            id="servo2Slider"
+            class="intensity-slider"
+            type="range"
+            min="0"
+            max="100"
+            step="1"
+            value="50"
+          />
+
+          <div class="slider-scale">
+            <span>0%</span>
+            <span>50%</span>
+            <span>100%</span>
+          </div>
+          <div class="start-position-control">
+            <div class="start-position-header">
+              <label for="servo2StartSlider" class="slider-label">
+                Start Position
+              </label>
+
+              <output
+                id="servo2StartValue"
+                class="angle-badge"
+                for="servo2StartSlider"
+              >
+                90°
+              </output>
+            </div>
+
+            <input
+              id="servo2StartSlider"
+              class="start-position-slider"
+              type="range"
+              min="35"
+              max="170"
+              step="1"
+              value="90"
+            />
+
+            <div class="slider-scale">
+              <span>35°</span>
+              <span>90°</span>
+              <span>170°</span>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section class="servo-selection">
+        <label class="servo-check">
+          <input type="checkbox" id="servo1Enabled" checked />
+          <span>Servo 1</span>
+        </label>
+
+        <label class="servo-check">
+          <input type="checkbox" id="servo2Enabled" checked />
+          <span>Servo 2</span>
+        </label>
+      </section>
+
+      <!-- Pattern controls -->
+      <section class="patterns-section">
+        <div class="section-heading">
+          <div>
+            <p class="card-label">Pattern execution</p>
+            <h2>Haptic Patterns</h2>
+          </div>
+
+          <span id="systemStateBadge" class="system-state"> Ready </span>
+        </div>
+
+        <div class="pattern-grid">
+          <button type="button" class="pattern-button" data-pattern="1">
+            <span class="pattern-number">01</span>
+            <span class="pattern-name">Scratch</span>
+          </button>
+
+          <button type="button" class="pattern-button" data-pattern="2">
+            <span class="pattern-number">02</span>
+            <span class="pattern-name">Crack</span>
+          </button>
+
+          <button type="button" class="pattern-button" data-pattern="3">
+            <span class="pattern-number">03</span>
+            <span class="pattern-name">Dent</span>
+          </button>
+
+          <button type="button" class="pattern-button" data-pattern="4">
+            <span class="pattern-number">04</span>
+            <span class="pattern-name">Bump</span>
+          </button>
+        </div>
+
+        <div class="pattern-editor-actions">
+          <button id="editPatternButton" type="button" class="secondary-button">
+            Edit Pattern
+          </button>
+        </div>
+
+        <div id="patternEditor" class="pattern-editor" hidden>
+          <div class="pattern-editor-header">
+            <h3>Edit Pattern</h3>
+
+            <select id="patternEditorSelect">
+              <option value="1">Scratch</option>
+              <option value="2">Crack</option>
+              <option value="3">Dent</option>
+              <option value="4">Bump</option>
+            </select>
+          </div>
+
+          <div id="patternSteps"></div>
+
+          <div class="pattern-editor-buttons">
+            <div class="pattern-editor-left-actions">
+              <button
+                id="addPatternStepButton"
+                type="button"
+                class="add-step-button"
+              >
+                + Add Step
+              </button>
+            </div>
+
+            <div class="pattern-editor-right-actions">
+              <button
+                id="resetPatternButton"
+                type="button"
+                class="secondary-button"
+              >
+                Reset Changes
+              </button>
+
+
+              <button
+                id="applyPatternButton"
+                type="button"
+                class="secondary-button"
+              >
+                Apply Pattern
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- System controls -->
+      <section class="system-controls">
+        <button id="neutralButton" type="button" class="secondary-button">
+          Neutral Position
         </button>
 
-        <button
-          type="button"
-          class="pattern-button"
-          data-pattern="2"
-        >
-          <span class="pattern-number">02</span>
-          <span class="pattern-name">Crack</span>
+        <button id="stopButton" type="button" class="danger-button">
+          Emergency Stop
         </button>
+      </section>
 
-        <button
-          type="button"
-          class="pattern-button"
-          data-pattern="3"
-        >
-          <span class="pattern-number">03</span>
-          <span class="pattern-name">Dent</span>
-        </button>
+      <!-- Status -->
+      <section class="status-panel" aria-live="polite">
+        <div class="status-row">
+          <span class="status-label"> System status </span>
 
-        <button
-          type="button"
-          class="pattern-button"
-          data-pattern="4"
-        >
-          <span class="pattern-number">04</span>
-          <span class="pattern-name">Bump</span>
-        </button>
+          <strong id="statusMessage"> Ready </strong>
+        </div>
 
-      </div>
-    </section>
+        <div class="status-row">
+          <span class="status-label"> Active pattern </span>
 
+          <strong id="activePattern"> None </strong>
+        </div>
 
-    <!-- System controls -->
-    <section class="system-controls">
+        <div class="status-row">
+          <span class="status-label"> Servo 1 intensity </span>
 
-      <button
-        id="neutralButton"
-        type="button"
-        class="secondary-button"
-      >
-        Neutral Position
-      </button>
+          <strong id="servo1Status"> 50% </strong>
+        </div>
 
-      <button
-        id="stopButton"
-        type="button"
-        class="danger-button"
-      >
-        Emergency Stop
-      </button>
+        <div class="status-row">
+          <span class="status-label"> Servo 2 intensity </span>
 
-    </section>
+          <strong id="servo2Status"> 50% </strong>
+        </div>
 
+        <div class="status-row">
+          <span class="status-label"> WebSocket to ESP32 </span>
 
-    <!-- Status -->
-    <section class="status-panel" aria-live="polite">
+          <strong id="communicationLatency"> Not measured </strong>
+        </div>
 
-      <div class="status-row">
-        <span class="status-label">System status</span>
-        <strong id="statusMessage">Ready</strong>
-      </div>
+        <div class="status-row">
+          <span class="status-label"> ESP32 to first PWM </span>
 
-      <div class="status-row">
-        <span class="status-label">Active pattern</span>
-        <strong id="activePattern">None</strong>
-      </div>
+          <strong id="internalLatency"> Not measured </strong>
+        </div>
 
-      <div class="status-row">
-        <span class="status-label">Servo 1 intensity</span>
-        <strong id="servo1Status">50%</strong>
-      </div>
+        <div class="status-row">
+          <span class="status-label"> Total latency </span>
 
-      <div class="status-row">
-        <span class="status-label">Servo 2 intensity</span>
-        <strong id="servo2Status">50%</strong>
-      </div>
+          <strong id="totalLatency"> Not measured </strong>
+        </div>
 
-    </section>
+        <div class="status-row">
+          <span class="status-label"> Clock-sync RTT </span>
 
-  </main>
+          <strong id="syncLatency"> Not synchronized </strong>
+        </div>
+      </section>
+    </main>
 
-  <script src="app.js"></script>
-</body>
+    <script src="app.js"></script>
+  </body>
 </html>
